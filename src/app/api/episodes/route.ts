@@ -1,75 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { Client } from "@elastic/elasticsearch";
+// import { Client } from "@elastic/elasticsearch";
 import { Episode } from "@/utils/types";
 
 // Cache mechanism to avoid reading the file on every request
 let episodesCache: Episode[] | null = null;
-let esClient: Client | null = null;
-let isIndexReady = false;
+// let esClient: Client | null = null;
+// let isIndexReady = false;
 
-// In-memory Elasticsearch client for local search
-function getElasticsearchClient() {
-  if (!esClient) {
-    // Create a new client with default options (connects to localhost:9200)
-    // For production, you would use actual Elasticsearch credentials
-    esClient = new Client({
-      node: process.env.ELASTICSEARCH_URL || "http://localhost:9200",
-    });
-  }
-  return esClient;
-}
+// // In-memory Elasticsearch client for local search
+// function getElasticsearchClient() {
+//   if (!esClient) {
+//     // Create a new client with default options (connects to localhost:9200)
+//     // For production, you would use actual Elasticsearch credentials
+//     esClient = new Client({
+//       node: process.env.ELASTICSEARCH_URL || "http://localhost:9200",
+//     });
+//   }
+//   return esClient;
+// }
 
 // Create index and initialize with data
-async function ensureIndexReady() {
-  if (isIndexReady) return;
+// async function ensureIndexReady() {
+//   if (isIndexReady) return;
 
-  const client = getElasticsearchClient();
-  const indexName = "episodes";
+//   const client = getElasticsearchClient();
+//   const indexName = "episodes";
 
-  try {
-    // Check if index exists
-    const indexExists = await client.indices.exists({ index: indexName });
+//   try {
+//     // Check if index exists
+//     const indexExists = await client.indices.exists({ index: indexName });
 
-    if (!indexExists) {
-      // Create index with mapping
-      await client.indices.create({
-        index: indexName,
-        mappings: {
-          properties: {
-            id: { type: "keyword" },
-            title: { type: "text", analyzer: "english" },
-            script: { type: "text", analyzer: "english" },
-            link: { type: "keyword" },
-            duration: { type: "keyword" },
-            air_date: {
-              type: "date",
-              format: "strict_date_optional_time||epoch_millis",
-            },
-            embed_src: { type: "keyword" },
-          },
-        },
-      });
+//     if (!indexExists) {
+//       // Create index with mapping
+//       await client.indices.create({
+//         index: indexName,
+//         mappings: {
+//           properties: {
+//             id: { type: "keyword" },
+//             title: { type: "text", analyzer: "english" },
+//             script: { type: "text", analyzer: "english" },
+//             link: { type: "keyword" },
+//             duration: { type: "keyword" },
+//             air_date: {
+//               type: "date",
+//               format: "strict_date_optional_time||epoch_millis",
+//             },
+//             embed_src: { type: "keyword" },
+//           },
+//         },
+//       });
 
-      // Index data
-      const episodes = await getEpisodes();
-      const operations = episodes.flatMap((episode) => [
-        { index: { _index: indexName, _id: episode.id } },
-        episode,
-      ]);
+//       // Index data
+//       const episodes = await getEpisodes();
+//       const operations = episodes.flatMap((episode) => [
+//         { index: { _index: indexName, _id: episode.id } },
+//         episode,
+//       ]);
 
-      if (operations.length > 0) {
-        await client.bulk({ refresh: true, operations });
-      }
-    }
+//       if (operations.length > 0) {
+//         await client.bulk({ refresh: true, operations });
+//       }
+//     }
 
-    isIndexReady = true;
-  } catch (error) {
-    console.error("Error setting up Elasticsearch:", error);
-    // Fallback to in-memory search if Elasticsearch setup fails
-  }
-}
+//     isIndexReady = true;
+//   } catch (error) {
+//     console.error("Error setting up Elasticsearch:", error);
+//     // Fallback to in-memory search if Elasticsearch setup fails
+//   }
+// }
 
 // Function to read episodes data
 async function getEpisodes(): Promise<Episode[]> {
@@ -90,42 +90,6 @@ async function getEpisodes(): Promise<Episode[]> {
 }
 
 // Fallback search function for when Elasticsearch isn't available
-function localSearchEpisodes(
-  episodes: Episode[],
-  query: string,
-  exactPhrase: boolean,
-  searchTitle: boolean
-): Episode[] {
-  if (!query.trim()) return [];
-
-  const searchFields = searchTitle ? ["title"] : ["script"];
-
-  if (exactPhrase) {
-    // For exact phrase search
-    return episodes.filter((episode) => {
-      return searchFields.some((field) => {
-        const value = episode[field as keyof Episode];
-        return (
-          value !== undefined &&
-          value !== null &&
-          value.toString().toLowerCase().includes(query.toLowerCase())
-        );
-      });
-    });
-  } else {
-    // For basic search
-    const terms = query.toLowerCase().split(/\s+/);
-    return episodes.filter((episode) => {
-      return searchFields.some((field) => {
-        const value = episode[field as keyof Episode];
-        if (value === undefined || value === null) return false;
-
-        const content = value.toString().toLowerCase();
-        return terms.some((term) => content.includes(term));
-      });
-    });
-  }
-}
 
 // Enhanced in-memory search with highlighting
 function enhancedLocalSearch(
